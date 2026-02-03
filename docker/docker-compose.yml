@@ -1,0 +1,66 @@
+name: birthday-reminder-service
+
+x-app-image: &app-image birthday-reminder-service:${APP_TAG:-0.0.1}
+x-app-build: &app-build
+  context: ..
+  dockerfile: docker/Dockerfile
+  args:
+    APP_NAME: birthday-reminder-service
+    APP_VERSION: ${APP_TAG:-0.0.1}
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: birthday-reminder-service-mongodb
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', 'db.runCommand({ ping: 1 }).ok']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - birthday-mongo-data:/data/db
+
+  api:
+    image: *app-image
+    build: *app-build
+    container_name: birthday-reminder-service-api
+    init: true
+    restart: unless-stopped
+    command: npm run start:prod
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/birthday_service
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      - '3000:3000'
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  worker:
+    image: *app-image
+    build: *app-build
+    container_name: birthday-reminder-service-worker
+    init: true
+    restart: unless-stopped
+    command: npm run start:worker
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/birthday_service
+      NODE_ENV: production
+      WORKER_BATCH_SIZE: 200
+      WORKER_MAX_BATCHES: 10
+    depends_on:
+      mongodb:
+        condition: service_healthy
+
+volumes:
+  birthday-mongo-data:
