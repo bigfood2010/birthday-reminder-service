@@ -134,6 +134,19 @@ describe('UsersService', () => {
 
     expect(result.timezone).toBe('Asia/Tokyo');
     expect(usersRepository.updateById.mock.calls).toHaveLength(1);
+    expect(usersRepository.updateById).toHaveBeenCalledWith(
+      '65f4f0a1325f8d0df763b0ab',
+      expect.objectContaining({
+        timezone: 'UTC',
+        lastSentAtUtc: null,
+        lastSentYear: null,
+        lastDeliveryProviderMessageId: null,
+        deliveryAttemptCount: 0,
+        nextDeliveryAttemptAtUtc: null,
+        lastDeliveryError: null,
+        lastDeliveryAttemptAtUtc: null,
+      }),
+    );
   });
 
   it('throws bad request for invalid id in update', async () => {

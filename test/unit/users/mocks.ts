@@ -19,6 +19,11 @@ export const createUserDocumentStub = (
   nextBirthdayAtUtc: new Date('2026-01-11T00:00:00.000Z'),
   lastSentAtUtc: null,
   lastSentYear: null,
+  lastDeliveryProviderMessageId: null,
+  deliveryAttemptCount: 0,
+  nextDeliveryAttemptAtUtc: null,
+  lastDeliveryError: null,
+  lastDeliveryAttemptAtUtc: null,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   updatedAt: new Date('2026-01-01T00:00:00.000Z'),
 });
@@ -50,6 +55,7 @@ export const mockUsersRepository = () => ({
   deleteById: jest.fn(),
   findDueUsers: jest.fn(),
   markBirthdayProcessed: jest.fn(),
+  markBirthdayDeliveryFailed: jest.fn(),
 });
 
 export const mockUsersService = () => ({

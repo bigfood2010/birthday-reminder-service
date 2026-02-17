@@ -7,7 +7,12 @@ type MutableUserKeys =
   | 'timezone'
   | 'nextBirthdayAtUtc'
   | 'lastSentAtUtc'
-  | 'lastSentYear';
+  | 'lastSentYear'
+  | 'lastDeliveryProviderMessageId'
+  | 'deliveryAttemptCount'
+  | 'nextDeliveryAttemptAtUtc'
+  | 'lastDeliveryError'
+  | 'lastDeliveryAttemptAtUtc';
 
 type MutableUserFields = Pick<User, MutableUserKeys>;
 
@@ -15,7 +20,18 @@ export type CreateUserRecord = Pick<
   MutableUserFields,
   'name' | 'email' | 'birthday' | 'timezone' | 'nextBirthdayAtUtc'
 > &
-  Partial<Pick<MutableUserFields, 'lastSentAtUtc' | 'lastSentYear'>>;
+  Partial<
+    Pick<
+      MutableUserFields,
+      | 'lastSentAtUtc'
+      | 'lastSentYear'
+      | 'lastDeliveryProviderMessageId'
+      | 'deliveryAttemptCount'
+      | 'nextDeliveryAttemptAtUtc'
+      | 'lastDeliveryError'
+      | 'lastDeliveryAttemptAtUtc'
+    >
+  >;
 
 export type UpdateUserRecord = Partial<MutableUserFields>;
 

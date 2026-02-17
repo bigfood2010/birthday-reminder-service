@@ -74,38 +74,150 @@ describe('UsersRepository', () => {
     expect(result).toBe(false);
   });
 
-  it('finds due users sorted and limited', async () => {
+  it('finds due users sorted and limited with retry window filter', async () => {
     const expected = [{ _id: '1' }];
+    const nowUtc = new Date('2026-01-01T00:00:00.000Z');
     const exec = jest.fn().mockResolvedValue(expected);
     const limit = jest.fn().mockReturnValue({ exec });
     const sort = jest.fn().mockReturnValue({ limit });
 
     mockModel.find.mockReturnValue({ sort });
 
-    const result = await repository.findDueUsers(
-      new Date('2026-01-01T00:00:00Z'),
-      2,
-    );
+    const result = await repository.findDueUsers(nowUtc, 2);
 
     expect(result).toBe(expected);
+    expect(mockModel.find).toHaveBeenCalledWith({
+      nextBirthdayAtUtc: { $lte: nowUtc },
+      $or: [
+        { nextDeliveryAttemptAtUtc: { $exists: false } },
+        { nextDeliveryAttemptAtUtc: null },
+        { nextDeliveryAttemptAtUtc: { $lte: nowUtc } },
+      ],
+    });
     expect(sort).toHaveBeenCalledWith({ nextBirthdayAtUtc: 1 });
     expect(limit).toHaveBeenCalledWith(2);
     expect(exec).toHaveBeenCalled();
   });
 
-  it('marks birthday as processed', async () => {
+  it('marks birthday as processed and clears retry metadata', async () => {
     const expected = { _id: '1', lastSentYear: 2026 };
+    const sentAtUtc = new Date('2026-01-01T09:00:00.000Z');
+    const nextBirthdayAtUtc = new Date('2027-01-01T09:00:00.000Z');
     const query = { exec: jest.fn().mockResolvedValue(expected) };
     mockModel.findOneAndUpdate.mockReturnValue(query);
 
     const result = await repository.markBirthdayProcessed({
       id: '1',
       sendYear: 2026,
-      sentAtUtc: new Date('2026-01-01T09:00:00Z'),
-      nextBirthdayAtUtc: new Date('2027-01-01T09:00:00Z'),
+      sentAtUtc,
+      nextBirthdayAtUtc,
+      providerMessageId: 'sim-provider-message-id-u1-2026',
     });
 
     expect(result).toBe(expected);
-    expect(mockModel.findOneAndUpdate.mock.calls).toHaveLength(1);
+    expect(mockModel.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        _id: '1',
+        $or: [
+          { lastSentYear: { $exists: false } },
+          { lastSentYear: null },
+          { lastSentYear: { $ne: 2026 } },
+        ],
+      },
+      {
+        $set: {
+          lastSentYear: 2026,
+          lastSentAtUtc: sentAtUtc,
+          nextBirthdayAtUtc,
+          lastDeliveryProviderMessageId: 'sim-provider-message-id-u1-2026',
+          deliveryAttemptCount: 0,
+          nextDeliveryAttemptAtUtc: null,
+          lastDeliveryError: null,
+          lastDeliveryAttemptAtUtc: null,
+        },
+      },
+      { new: true },
+    );
+  });
+
+  it('records retry metadata when delivery fails before exhaustion', async () => {
+    const expected = { _id: '1', deliveryAttemptCount: 1 };
+    const failedAtUtc = new Date('2026-01-01T09:00:00.000Z');
+    const nextRetryAtUtc = new Date('2026-01-01T09:15:00.000Z');
+    const currentBirthdayAtUtc = new Date('2026-01-01T09:00:00.000Z');
+    const query = { exec: jest.fn().mockResolvedValue(expected) };
+    mockModel.findOneAndUpdate.mockReturnValue(query);
+
+    const result = await repository.markBirthdayDeliveryFailed({
+      id: '1',
+      sendYear: 2026,
+      deliveryAttemptCount: 1,
+      nextDeliveryAttemptAtUtc: nextRetryAtUtc,
+      nextBirthdayAtUtc: currentBirthdayAtUtc,
+      lastDeliveryError: 'provider timeout',
+      lastDeliveryAttemptAtUtc: failedAtUtc,
+    });
+
+    expect(result).toBe(expected);
+    expect(mockModel.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        _id: '1',
+        $or: [
+          { lastSentYear: { $exists: false } },
+          { lastSentYear: null },
+          { lastSentYear: { $ne: 2026 } },
+        ],
+      },
+      {
+        $set: {
+          deliveryAttemptCount: 1,
+          nextDeliveryAttemptAtUtc: nextRetryAtUtc,
+          nextBirthdayAtUtc: currentBirthdayAtUtc,
+          lastDeliveryError: 'provider timeout',
+          lastDeliveryAttemptAtUtc: failedAtUtc,
+        },
+      },
+      { new: true },
+    );
+  });
+
+  it('records exhausted state and advances schedule after max retries', async () => {
+    const expected = { _id: '1', deliveryAttemptCount: 0 };
+    const failedAtUtc = new Date('2026-01-01T09:30:00.000Z');
+    const nextBirthdayAtUtc = new Date('2027-01-01T09:00:00.000Z');
+    const query = { exec: jest.fn().mockResolvedValue(expected) };
+    mockModel.findOneAndUpdate.mockReturnValue(query);
+
+    const result = await repository.markBirthdayDeliveryFailed({
+      id: '1',
+      sendYear: 2026,
+      deliveryAttemptCount: 0,
+      nextDeliveryAttemptAtUtc: null,
+      nextBirthdayAtUtc,
+      lastDeliveryError: 'provider down',
+      lastDeliveryAttemptAtUtc: failedAtUtc,
+    });
+
+    expect(result).toBe(expected);
+    expect(mockModel.findOneAndUpdate).toHaveBeenCalledWith(
+      {
+        _id: '1',
+        $or: [
+          { lastSentYear: { $exists: false } },
+          { lastSentYear: null },
+          { lastSentYear: { $ne: 2026 } },
+        ],
+      },
+      {
+        $set: {
+          deliveryAttemptCount: 0,
+          nextDeliveryAttemptAtUtc: null,
+          nextBirthdayAtUtc,
+          lastDeliveryError: 'provider down',
+          lastDeliveryAttemptAtUtc: failedAtUtc,
+        },
+      },
+      { new: true },
+    );
   });
 });

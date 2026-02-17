@@ -27,6 +27,21 @@ export class User {
   @Prop({ type: Number, default: null })
   lastSentYear!: number | null;
 
+  @Prop({ type: String, default: null })
+  lastDeliveryProviderMessageId!: string | null;
+
+  @Prop({ type: Number, default: 0 })
+  deliveryAttemptCount!: number;
+
+  @Prop({ type: Date, default: null })
+  nextDeliveryAttemptAtUtc!: Date | null;
+
+  @Prop({ type: String, default: null })
+  lastDeliveryError!: string | null;
+
+  @Prop({ type: Date, default: null })
+  lastDeliveryAttemptAtUtc!: Date | null;
+
   createdAt!: Date;
 
   updatedAt!: Date;
@@ -37,3 +52,4 @@ export const UserSchema = SchemaFactory.createForClass(User);
 
 UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ nextBirthdayAtUtc: 1 });
+UserSchema.index({ nextBirthdayAtUtc: 1, nextDeliveryAttemptAtUtc: 1 });

@@ -71,6 +71,11 @@ export class UsersService {
       });
       patch.lastSentAtUtc = null;
       patch.lastSentYear = null;
+      patch.lastDeliveryProviderMessageId = null;
+      patch.deliveryAttemptCount = 0;
+      patch.nextDeliveryAttemptAtUtc = null;
+      patch.lastDeliveryError = null;
+      patch.lastDeliveryAttemptAtUtc = null;
     }
 
     if (Object.keys(patch).length === 0) {
